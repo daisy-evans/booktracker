@@ -15,6 +15,7 @@ load_books <- function() {
     data.frame(
       Title = character(),
       Author = character(),
+      DateRead = date(),
       Genre = character(),
       Year = integer(),
       Rating = numeric(),
@@ -34,6 +35,7 @@ ui <- page_sidebar(
     h4("Add a Book"),
     textInput("title", "Book Title", placeholder = "Enter title..."),
     textInput("author", "Author", placeholder = "Enter author..."),
+    dateInput("dateread", "Date Read", format = "yyyy-mm-dd"),
     selectInput("genre", "Genre", 
                 choices = c("Fiction", "Non-Fiction", "Science Fiction", 
                            "Fantasy", "Mystery", "Romance", "Biography", 
@@ -46,7 +48,8 @@ ui <- page_sidebar(
     hr(),
     actionButton("delete_selected", "Delete Selected", class = "btn-warning"),
     hr(),
-    downloadButton("download_csv", "Download CSV", class = "btn-success")
+    downloadButton("download_csv", "Download CSV", class = "btn-success"),
+    width = 400
   ),
   
   card(
@@ -66,10 +69,23 @@ ui <- page_sidebar(
     col_widths = c(6, 6)
   ),
   
-  card(
-    card_header("Books Over Time"),
-    plotOutput("timeline_plot")
+  layout_columns(
+    card(
+      card_header("Year Published Distribution"),
+      plotOutput("published_plot")
+    ),
+    card(
+      card_header("Year Read Distribution"),
+      plotOutput("read_plot")
+    ),
+    col_widths = c(6, 6)
   )
+  # ,
+  # 
+  # card(
+  #   card_header("Books Over Time"),
+  #   plotOutput("timeline_plot")
+  # )
 )
 
 server <- function(input, output, session) {
@@ -90,6 +106,7 @@ server <- function(input, output, session) {
     new_book <- data.frame(
       Title = input$title,
       Author = input$author,
+      DateRead = input$dateread,
       Genre = input$genre,
       Year = input$year,
       Rating = input$rating,
@@ -145,7 +162,7 @@ server <- function(input, output, session) {
     
     ggplot(books(), aes(x = Rating)) +
       geom_histogram(binwidth = 0.5, fill = "#3498db", color = "white") +
-      scale_x_continuous(breaks = seq(1, 5, 0.5)) +
+      scale_x_continuous(breaks = seq(1, 5, 0.5), limits = c(0.5,5.5)) +
       labs(title = "Distribution of Ratings", 
            x = "Rating", 
            y = "Number of Books") +
@@ -169,25 +186,61 @@ server <- function(input, output, session) {
       theme_minimal()
   })
   
+  # Year Published plot
+  output$published_plot <- renderPlot({
+    req(nrow(books()) > 0)
+    
+    year_pub_counts <- books() %>%
+      count(Year) %>%
+      arrange(desc(n))
+    
+    ggplot(year_pub_counts, aes(x = reorder(Year, n), y = n)) +
+      geom_col(fill = "#2ecc71") +
+      #coord_flip() +
+      labs(title = "Year Published", 
+           x = "Year", 
+           y = "Number of Books") +
+      theme_minimal()
+  })
+  
+  # Year Read plot
+  output$read_plot <- renderPlot({
+    req(nrow(books()) > 0)
+    
+    year_read_counts <- books() %>%
+      mutate(YearRead = lubridate::year(lubridate::dmy(DateRead))) %>%
+      group_by(YearRead, Genre) %>%
+      summarise(
+        n = n()
+      )
+    
+    ggplot(year_read_counts, aes(x = YearRead, y = n, colour=Genre, fill=Genre)) +
+      geom_bar(position = "stack", stat = "identity") +
+      #coord_flip() +
+      labs(title = "Year Read", 
+           x = "Year", 
+           y = "Number of Books") +
+      theme_minimal()
+  })
+  
   # Timeline plot
   output$timeline_plot <- renderPlot({
     req(nrow(books()) > 0)
     
     year_summary <- books() %>%
-      group_by(Year) %>%
+      group_by(DateRead) %>%
       summarise(
         Count = n(),
         AvgRating = mean(Rating),
         .groups = 'drop'
       )
     
-    ggplot(year_summary, aes(x = Year, y = Count)) +
-      geom_line(color = "#e74c3c", size = 1) +
-      geom_point(aes(size = AvgRating), color = "#e74c3c", alpha = 0.7) +
-      labs(title = "Books Read by Publication Year", 
-           x = "Year Published", 
-           y = "Number of Books",
-           size = "Avg Rating") +
+    ggplot(year_summary, aes(x = DateRead, y = Count)) +
+      geom_line(color = "#e74c3c", size = 1, group=1) +
+      geom_point(color = "#e74c3c", alpha = 0.7) +
+      labs(title = "Books Read Over Time", 
+           x = "Date Read", 
+           y = "Number of Books") +
       theme_minimal() +
       theme(legend.position = "right")
   })
