@@ -75,7 +75,7 @@ ui <- page_sidebar(
       plotOutput("published_plot")
     ),
     card(
-      card_header("Year Read Distribution"),
+      card_header("Month Read Distribution"),
       plotOutput("read_plot")
     ),
     col_widths = c(6, 6)
@@ -208,7 +208,7 @@ server <- function(input, output, session) {
     req(nrow(books()) > 0)
     
     year_read_counts <- books() %>%
-      mutate(YearRead = lubridate::year(lubridate::dmy(DateRead))) %>%
+      mutate(YearRead = lubridate::floor_date(lubridate::dmy(DateRead),unit = "month")) %>%
       group_by(YearRead, Genre) %>%
       summarise(
         n = n()
